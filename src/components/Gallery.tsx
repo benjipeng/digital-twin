@@ -3,7 +3,15 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { getTPS, getValidatorCount, getChainStats, getEnergyStats } from '../services/solana';
 import { X } from 'lucide-react';
 
-// Import AI-generated assets
+// Import 3D Components
+import { ExpandedGlobalMap } from './ExpandedGlobalMap';
+import { Scene } from './canvas/Scene';
+import { Globe } from './canvas/Globe';
+import { Crystal } from './canvas/Crystal';
+import { City } from './canvas/City';
+
+// Import Assets (Strings for background images if needed, but we use 3D now)
+// We kept them in the interface just in case, or we can remove image property if unused.
 import twinGlobe from '../assets/twin_globe.png';
 import twinCrystal from '../assets/twin_crystal.png';
 import twinCity from '../assets/twin_city.png';
@@ -47,12 +55,25 @@ export const Gallery = () => {
         return () => clearInterval(interval);
     }, []);
 
+    // Helper to render correct 3D component with fallback or specific props
+    const renderContent = (id: string, isExpanded: boolean = false) => {
+        return (
+            <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}>
+                <Scene zoom={isExpanded ? 1.5 : 1}>
+                    {id === 'depin' && <Globe validatorCount={data.validators || 1000} />}
+                    {id === 'carbon' && <Crystal energy={data.energy ? data.energy.totalPowerKW / 10000 : 0.5} />}
+                    {id === 'city' && <City tps={data.tps || 1000} />}
+                </Scene>
+            </div>
+        );
+    };
+
     const exhibits = [
         {
             id: 'depin',
             title: 'THE DePIN CONSTELLATION',
             subtitle: 'Global Infrastructure Map',
-            image: twinGlobe,
+            image: twinGlobe, // Kept for metadata/fallback if needed
             stat: data.validators?.toLocaleString() ?? '---',
             statLabel: 'ACTIVE NODES (VALIDATORS)',
             description: 'A rotating 3D globe visualizing active Solana Validators as glowing nodes.',
@@ -113,7 +134,7 @@ export const Gallery = () => {
                 gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))',
                 gap: 'var(--spacing-lg)'
             }}>
-                {exhibits.map((exhibit, i) => (
+                {exhibits.map((exhibit) => (
                     <motion.article
                         key={exhibit.id}
                         layoutId={exhibit.id}
@@ -124,215 +145,107 @@ export const Gallery = () => {
                         whileHover={{ scale: 1.02, borderColor: 'var(--color-primary)' }}
                         transition={{ duration: 0.4 }}
                         style={{
-                            position: 'relative',
-                            aspectRatio: '4/3',
-                            borderRadius: '8px',
-                            overflow: 'hidden',
-                            background: 'var(--color-bg-card)',
+                            background: 'rgba(255, 255, 255, 0.03)',
                             border: '1px solid var(--color-glass-border)',
-                            cursor: 'pointer'
+                            borderRadius: '16px',
+                            overflow: 'hidden',
+                            cursor: 'pointer',
+                            position: 'relative',
+                            height: '500px',
+                            display: 'flex',
+                            flexDirection: 'column'
                         }}
                     >
-                        {/* Background Image */}
-                        <motion.div
-                            layoutId={`img-${exhibit.id}`}
-                            style={{
-                                position: 'absolute',
-                                top: 0, left: 0, right: 0, bottom: 0,
-                                backgroundImage: `url(${exhibit.image})`,
-                                backgroundSize: 'cover',
-                                backgroundPosition: 'center',
-                                opacity: 0.7,
-                            }}
-                        />
-
-                        {/* Gradient Overlay */}
-                        <div style={{
-                            position: 'absolute',
-                            top: 0, left: 0, right: 0, bottom: 0,
-                            background: 'linear-gradient(to top, rgba(3,3,3,0.95) 0%, rgba(3,3,3,0.4) 50%, transparent 100%)'
-                        }} />
-
-                        {/* Content */}
-                        <div style={{
-                            position: 'absolute',
-                            bottom: 0, left: 0, right: 0,
-                            padding: 'var(--spacing-md)',
-                            zIndex: 1
-                        }}>
-                            <motion.p layoutId={`subtitle-${exhibit.id}`} style={{
-                                fontFamily: 'var(--font-family-mono)',
-                                fontSize: '0.7rem',
-                                color: 'var(--color-text-dim)',
-                                letterSpacing: '0.15rem',
-                                marginBottom: '0.5rem'
-                            }}>
-                                {exhibit.subtitle.toUpperCase()}
-                            </motion.p>
-                            <motion.h3 layoutId={`title-${exhibit.id}`} style={{
-                                fontSize: '1.8rem',
-                                fontWeight: 400,
-                                marginBottom: '1rem',
-                                fontFamily: 'var(--font-family-main)'
-                            }}>
-                                {exhibit.title}
-                            </motion.h3>
-
-                            {/* Live Stat Preview */}
+                        {/* Card Content (Preview Mode) */}
+                        <div style={{ position: 'relative', flex: 1, minHeight: '300px' }}>
+                            {renderContent(exhibit.id, false)}
+                            {/* Gradient Overlay */}
                             <div style={{
-                                display: 'flex',
-                                alignItems: 'baseline',
-                                gap: '1rem',
-                                borderTop: '1px solid var(--color-glass-border)',
-                                paddingTop: '1rem'
-                            }}>
-                                <span style={{
-                                    fontFamily: 'var(--font-family-mono)',
-                                    fontSize: '2rem',
-                                    fontWeight: 500,
-                                    color: 'var(--color-primary)'
-                                }}>
+                                position: 'absolute', bottom: 0, left: 0, right: 0, height: '150px',
+                                background: 'linear-gradient(to top, rgba(0,0,0,0.9), transparent)',
+                                pointerEvents: 'none'
+                            }} />
+                        </div>
+
+                        <div style={{ padding: '1.5rem', position: 'relative', zIndex: 2 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'end', marginBottom: '0.5rem' }}>
+                                <h3 style={{ margin: 0, fontSize: '1.2rem', fontFamily: 'var(--font-family-display)' }}>
+                                    {exhibit.title}
+                                </h3>
+                                <span style={{ fontFamily: 'var(--font-family-mono)', color: 'var(--color-primary)', fontSize: '1.1rem' }}>
                                     {exhibit.stat}
                                 </span>
-                                <span style={{
-                                    fontFamily: 'var(--font-family-mono)',
-                                    fontSize: '0.7rem',
-                                    color: 'var(--color-text-dim)',
-                                    letterSpacing: '0.1rem'
-                                }}>
-                                    {exhibit.statLabel}
-                                </span>
                             </div>
+                            <p style={{ margin: 0, color: 'var(--color-text-dim)', fontSize: '0.9rem' }}>
+                                {exhibit.subtitle}
+                            </p>
                         </div>
                     </motion.article>
                 ))}
             </div>
 
-            {/* Expanded Modal */}
+            {/* Expanded Views */}
             <AnimatePresence>
-                {selectedId && (() => {
-                    const exhibit = exhibits.find(e => e.id === selectedId)!;
-                    return (
-                        <div style={{
-                            position: 'fixed',
-                            top: 0, left: 0, right: 0, bottom: 0,
-                            zIndex: 200,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            backgroundColor: 'rgba(0,0,0,0.8)',
-                            backdropFilter: 'blur(10px)',
-                            padding: '2rem'
-                        }} onClick={() => setSelectedId(null)}>
-                            <motion.div
-                                layoutId={exhibit.id}
-                                onClick={(e) => e.stopPropagation()}
-                                style={{
-                                    width: '100%',
-                                    maxWidth: '1000px',
-                                    backgroundColor: 'var(--color-bg-dark)',
-                                    border: '1px solid var(--color-glass-border)',
-                                    borderRadius: '12px',
-                                    overflow: 'hidden',
-                                    position: 'relative',
-                                    aspectRatio: '16/9',
-                                    boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)'
-                                }}
-                            >
-                                {/* Close Button */}
-                                <button
-                                    onClick={() => setSelectedId(null)}
-                                    style={{
-                                        position: 'absolute',
-                                        top: '2rem',
-                                        right: '2rem',
-                                        background: 'rgba(0,0,0,0.5)',
-                                        border: '1px solid var(--color-glass-border)',
-                                        color: 'white',
-                                        borderRadius: '50%',
-                                        width: '40px',
-                                        height: '40px',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        cursor: 'pointer',
-                                        zIndex: 10
-                                    }}
-                                >
-                                    <X size={20} />
-                                </button>
-
-                                <motion.div
-                                    layoutId={`img-${exhibit.id}`}
-                                    style={{
-                                        width: '100%',
-                                        height: '60%',
-                                        backgroundImage: `url(${exhibit.image})`,
-                                        backgroundSize: 'cover',
-                                        backgroundPosition: 'center',
-                                    }}
-                                />
-
-                                <div style={{ padding: '3rem', position: 'relative' }}>
-                                    <motion.p layoutId={`subtitle-${exhibit.id}`} style={{
-                                        fontFamily: 'var(--font-family-mono)',
-                                        color: 'var(--color-primary)',
-                                        letterSpacing: '0.2rem',
-                                        marginBottom: '0.5rem',
-                                        fontSize: '0.8rem'
-                                    }}>
-                                        {exhibit.subtitle.toUpperCase()} // EXPANDED VIEW
-                                    </motion.p>
-                                    <motion.h3 layoutId={`title-${exhibit.id}`} style={{
-                                        fontSize: '3rem',
-                                        fontFamily: 'var(--font-family-display)',
-                                        marginBottom: '1rem'
-                                    }}>
-                                        {exhibit.title}
-                                    </motion.h3>
-                                    <motion.p
-                                        initial={{ opacity: 0 }}
-                                        animate={{ opacity: 1 }}
-                                        transition={{ delay: 0.2 }}
+                {selectedId && (
+                    <>
+                        {selectedId === 'depin' ? (
+                            <ExpandedGlobalMap
+                                validatorCount={data.validators || 1000}
+                                onClose={() => setSelectedId(null)}
+                            />
+                        ) : (
+                            /* Fallback for other cards (keep existing generic modal) */
+                            (() => {
+                                const exhibit = exhibits.find(e => e.id === selectedId);
+                                if (!exhibit) return null;
+                                return (
+                                    <motion.div
+                                        layoutId={selectedId}
                                         style={{
-                                            color: 'var(--color-text-muted)',
-                                            maxWidth: '600px',
-                                            lineHeight: 1.6
+                                            position: 'fixed',
+                                            top: 0, left: 0, right: 0, bottom: 0,
+                                            zIndex: 200,
+                                            background: 'var(--color-bg-dark)',
+                                            display: 'flex',
+                                            flexDirection: 'column'
                                         }}
                                     >
-                                        {exhibit.detail}
-                                    </motion.p>
+                                        <button
+                                            onClick={() => setSelectedId(null)}
+                                            style={{
+                                                position: 'absolute', top: '2rem', right: '2rem', zIndex: 101,
+                                                background: 'rgba(0,0,0,0.5)', border: '1px solid var(--color-glass-border)',
+                                                color: 'white', padding: '1rem', cursor: 'pointer', borderRadius: '50%'
+                                            }}
+                                        >
+                                            <X size={20} />
+                                        </button>
 
-                                    {/* Expanded Stats */}
-                                    <div style={{
-                                        marginTop: '2rem',
-                                        display: 'flex',
-                                        gap: '4rem',
-                                        borderTop: '1px solid var(--color-glass-border)',
-                                        paddingTop: '2rem'
-                                    }}>
-                                        <div>
-                                            <div style={{ fontFamily: 'var(--font-family-mono)', fontSize: '0.7rem', color: 'var(--color-text-dim)' }}>
-                                                LIVE METRIC
-                                            </div>
-                                            <div style={{ fontSize: '2.5rem', fontFamily: 'var(--font-family-mono)', color: 'var(--color-primary)' }}>
-                                                {exhibit.stat}
-                                            </div>
+                                        <div style={{ flex: 1, position: 'relative' }}>
+                                            {renderContent(selectedId, true)}
                                         </div>
-                                        <div>
-                                            <div style={{ fontFamily: 'var(--font-family-mono)', fontSize: '0.7rem', color: 'var(--color-text-dim)' }}>
-                                                STATUS
+
+                                        <div style={{
+                                            position: 'absolute', bottom: '10%', left: '5%', maxWidth: '600px',
+                                            padding: '2rem', background: 'rgba(0,0,0,0.8)', borderRadius: '8px',
+                                            border: '1px solid var(--color-glass-border)'
+                                        }}>
+                                            <h2 style={{ fontSize: '2.5rem', marginBottom: '1rem', fontFamily: 'var(--font-family-display)' }}>
+                                                {exhibit.title}
+                                            </h2>
+                                            <div style={{ fontSize: '1.2rem', color: 'var(--color-primary)', fontFamily: 'var(--font-family-mono)', marginBottom: '1rem' }}>
+                                                {exhibit.stat} {exhibit.statLabel}
                                             </div>
-                                            <div style={{ fontSize: '2.5rem', fontFamily: 'var(--font-family-mono)', color: '#00ff9d' }}>
-                                                ACTIVE
-                                            </div>
+                                            <p style={{ lineHeight: 1.6, color: 'var(--color-text-dim)' }}>
+                                                {exhibit.detail}
+                                            </p>
                                         </div>
-                                    </div>
-                                </div>
-                            </motion.div>
-                        </div>
-                    );
-                })()}
+                                    </motion.div>
+                                );
+                            })()
+                        )}
+                    </>
+                )}
             </AnimatePresence>
         </section>
     );

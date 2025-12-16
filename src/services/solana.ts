@@ -1,4 +1,6 @@
 import { Connection } from '@solana/web3.js';
+import type { GeoLocation } from './geolocation';
+import { getGeoLocation } from './geolocation';
 
 // Use Ankr public endpoint which is more reliable than the default one for frontend requests
 const NETWORK = 'https://solana.drpc.org';
@@ -74,4 +76,22 @@ export const getEnergyStats = async (validatorCount: number) => {
     totalPowerKW: Math.round(totalKw),
     joulesPerTx: 650 // Avg Joules per transaction
   };
+};
+
+// Get Detailed Network Nodes (Validators with Geo)
+export const getNetworkNodes = async (): Promise<GeoLocation[]> => {
+  try {
+    const nodes = await connection.getClusterNodes();
+    // Filter nodes that have an IP (gossip address)
+    const nodeIps = nodes
+      .filter(n => n.gossip)
+      .map(n => n.gossip!.split(':')[0]); // Extract IP from "IP:PORT"
+
+    // Get Geo for a subset
+    const detailedNodes = await getGeoLocation(nodeIps);
+    return detailedNodes;
+  } catch (error) {
+    console.error("Failed to fetch/resolve network nodes:", error);
+    return [];
+  }
 };
