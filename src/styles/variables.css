@@ -1,0 +1,45 @@
+:root {
+  /* Colors - Museum Grade */
+  --color-bg-dark: #030303;
+  /* Void Black */
+  --color-bg-card: rgba(255, 255, 255, 0.02);
+
+  --color-primary: #ffffff;
+  /* Stark White */
+  --color-secondary: #e0e0e0;
+  /* Platinum */
+  --color-accent: #333333;
+  /* Dark Grey */
+
+  --color-text-main: #ffffff;
+  --color-text-muted: #888888;
+  --color-text-dim: #444444;
+
+  --color-glass: rgba(255, 255, 255, 0.03);
+  --color-glass-border: rgba(255, 255, 255, 0.08);
+
+  /* Gradients */
+  --gradient-void: radial-gradient(circle at center, #111111 0%, #030303 100%);
+  --gradient-glass: linear-gradient(180deg,
+      rgba(255, 255, 255, 0.02) 0%,
+      rgba(255, 255, 255, 0.00) 100%);
+
+  /* Typography */
+  --font-family-main: 'Inter', system-ui, sans-serif;
+  --font-family-display: 'Orbitron', sans-serif;
+  --font-family-mono: 'JetBrains Mono', 'Courier New', monospace;
+
+  /* Spacing */
+  --spacing-xs: 0.5rem;
+  --spacing-sm: 1rem;
+  --spacing-md: 2rem;
+  --spacing-lg: 4rem;
+  --spacing-xl: 8rem;
+
+  /* Effects */
+  --shadow-subtle: 0 10px 30px rgba(0, 0, 0, 0.5);
+  --backdrop-blur: 20px;
+
+  /* Layout */
+  --max-width: 1400px;
+}
