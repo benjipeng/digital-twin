@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { getTPS, getValidatorCount, getChainStats, getEnergyStats } from '../services/solana';
+import { getTPS, getValidatorCount, getEnergyStats } from '../services/solana';
+import type { EnergyStats } from '../services/solana';
 import { X } from 'lucide-react';
 
 // Import 3D Components
@@ -19,14 +20,13 @@ import twinCity from '../assets/twin_city.png';
 interface ExhibitData {
     validators: number | null;
     tps: number | null;
-    slotTime: number | null;
+    energy: EnergyStats | null;
 }
 
 export const Gallery = () => {
-    const [data, setData] = useState<ExhibitData & { energy: any }>({
+    const [data, setData] = useState<ExhibitData>({
         validators: null,
         tps: null,
-        slotTime: null,
         energy: null
     });
 
@@ -34,10 +34,9 @@ export const Gallery = () => {
 
     useEffect(() => {
         const fetchData = async () => {
-            const [validators, tps, stats] = await Promise.all([
+            const [validators, tps] = await Promise.all([
                 getValidatorCount(),
                 getTPS(),
-                getChainStats()
             ]);
 
             const energy = await getEnergyStats(validators || 0);
@@ -45,7 +44,6 @@ export const Gallery = () => {
             setData({
                 validators,
                 tps,
-                slotTime: stats?.blockTime ? Math.floor(Date.now() / 1000) - stats.blockTime : null,
                 energy
             });
         };
@@ -59,7 +57,7 @@ export const Gallery = () => {
     const renderContent = (id: string, isExpanded: boolean = false) => {
         return (
             <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}>
-                <Scene zoom={isExpanded ? 1.5 : 1}>
+                <Scene zoom={isExpanded ? 1.5 : 1} quality={isExpanded ? 'full' : 'preview'}>
                     {id === 'depin' && <Globe validatorCount={data.validators || 1000} />}
                     {id === 'carbon' && <Crystal energy={data.energy ? data.energy.totalPowerKW / 10000 : 0.5} />}
                     {id === 'city' && <City tps={data.tps || 1000} />}
@@ -158,7 +156,7 @@ export const Gallery = () => {
                     >
                         {/* Card Content (Preview Mode) */}
                         <div style={{ position: 'relative', flex: 1, minHeight: '300px' }}>
-                            {renderContent(exhibit.id, false)}
+                            {!selectedId && renderContent(exhibit.id, false)}
                             {/* Gradient Overlay */}
                             <div style={{
                                 position: 'absolute', bottom: 0, left: 0, right: 0, height: '150px',

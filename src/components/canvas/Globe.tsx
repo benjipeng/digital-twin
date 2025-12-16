@@ -1,8 +1,9 @@
-import { useRef, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Stars, Ring } from '@react-three/drei';
 import * as THREE from 'three';
 import type { GeoLocation } from '../../services/geolocation';
+import { hashStringToSeed, randomFromSeed } from '../../utils/random';
 
 interface GlobeProps {
     validatorCount?: number;
@@ -26,11 +27,12 @@ export const Globe = ({ validatorCount = 1000, locations = [] }: GlobeProps) => 
     };
 
     // Calculate positions based on REAL locations or Fallback
-    const { positions, colors } = useMemo(() => {
+    const { positions, colors, scales } = useMemo(() => {
         const hasRealData = locations.length > 0;
         const count = hasRealData ? locations.length : Math.min(validatorCount, 400);
 
         const tempCol = new Float32Array(count * 3);
+        const tempScale = new Float32Array(count);
         const color1 = new THREE.Color("#00ffff"); // Cyan
         const color2 = new THREE.Color("#bf00ff"); // Purple
 
@@ -38,12 +40,14 @@ export const Globe = ({ validatorCount = 1000, locations = [] }: GlobeProps) => 
 
         for (let i = 0; i < count; i++) {
             let pos = new THREE.Vector3();
+            let seedBase = (validatorCount ^ i) >>> 0;
 
             if (hasRealData) {
                 // Real Data Mapping
                 const loc = locations[i];
                 if (loc) {
                     pos = latLonToVector3(loc.lat, loc.lon, 2.05);
+                    seedBase = loc.ip ? hashStringToSeed(loc.ip) : hashStringToSeed(`${loc.lat},${loc.lon}`);
                 }
             } else {
                 // Simulated (Fibonacci Sphere)
@@ -60,11 +64,12 @@ export const Globe = ({ validatorCount = 1000, locations = [] }: GlobeProps) => 
             sphericalPoints.push(pos);
 
             // Mix colors (Real data could use country color coding later?)
-            const mixed = color1.clone().lerp(color2, Math.random());
+            const mixed = color1.clone().lerp(color2, randomFromSeed(seedBase));
             tempCol.set([mixed.r, mixed.g, mixed.b], i * 3);
+            tempScale[i] = 0.5 + randomFromSeed(seedBase ^ 0x9e3779b9) * 0.5;
         }
 
-        return { positions: sphericalPoints, colors: tempCol };
+        return { positions: sphericalPoints, colors: tempCol, scales: tempScale };
     }, [validatorCount, locations]);
 
     useFrame((state) => {
@@ -86,14 +91,14 @@ export const Globe = ({ validatorCount = 1000, locations = [] }: GlobeProps) => 
         }
     });
 
-    useMemo(() => {
+    useEffect(() => {
         if (!meshRef.current) return;
         const tempObj = new THREE.Object3D();
 
         positions.forEach((pos, i) => {
             tempObj.position.copy(pos);
             tempObj.lookAt(0, 0, 0);
-            tempObj.scale.setScalar(Math.random() * 0.5 + 0.5);
+            tempObj.scale.setScalar(scales[i] ?? 0.75);
             tempObj.updateMatrix();
             meshRef.current?.setMatrixAt(i, tempObj.matrix);
             meshRef.current?.setColorAt(i, new THREE.Color().fromArray(colors, i * 3));
@@ -101,7 +106,7 @@ export const Globe = ({ validatorCount = 1000, locations = [] }: GlobeProps) => 
 
         meshRef.current.instanceMatrix.needsUpdate = true;
         meshRef.current.instanceColor!.needsUpdate = true;
-    }, [positions, colors]);
+    }, [positions, colors, scales]);
 
     return (
         <group rotation={[0, 0, Math.PI / 8]}>

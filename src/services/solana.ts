@@ -7,6 +7,12 @@ const NETWORK = 'https://solana.drpc.org';
 
 export const connection = new Connection(NETWORK, 'confirmed');
 
+export interface EnergyStats {
+  netCarbon: string;
+  totalPowerKW: number;
+  joulesPerTx: number;
+}
+
 export const getChainStats = async () => {
   try {
     const [slot, epochInfo] = await Promise.all([
@@ -62,7 +68,7 @@ export const getValidatorCount = async () => {
 };
 
 // Get estimated Network Energy stats (Simulated based on Validator count)
-export const getEnergyStats = async (validatorCount: number) => {
+export const getEnergyStats = async (validatorCount: number): Promise<EnergyStats | null> => {
   // Constants based on Solana Climate Report (approximate)
   const WATTS_PER_VALIDATOR = 500; // Avg server wattage
   const PUE = 1.2; // Power Usage Effectiveness

@@ -1,6 +1,7 @@
-import { useRef, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
+import { randomFromSeed } from '../../utils/random';
 
 interface CityProps {
     tps?: number;
@@ -17,9 +18,11 @@ export const City = ({ tps = 1000 }: CityProps) => {
 
         for (let x = 0; x < 10; x++) {
             for (let z = 0; z < 10; z++) {
-                // Random height based heavily on center proximity
+                // Deterministic "random" height (keeps renders pure + stable in StrictMode)
                 const dist = Math.sqrt((x - 4.5) ** 2 + (z - 4.5) ** 2);
-                const height = Math.max(0.2, (6 - dist) * Math.random() + 0.5);
+                const seed = ((x + 1) * 73856093) ^ ((z + 1) * 19349663) ^ 0x2c17;
+                const noise = randomFromSeed(seed);
+                const height = Math.max(0.2, (6 - dist) * noise + 0.5);
 
                 matrix.identity();
                 matrix.setPosition(x - 4.5, height / 2, z - 4.5);
@@ -32,14 +35,19 @@ export const City = ({ tps = 1000 }: CityProps) => {
 
     // Generate Moving Traffic
     const trafficCount = 100;
-    const trafficSpeed = useRef(new Float32Array(trafficCount));
-    const trafficOffset = useRef(new Float32Array(trafficCount));
+    const traffic = useMemo(() => {
+        const speeds = new Float32Array(trafficCount);
+        const offsets = new Float32Array(trafficCount);
+        const lanes = new Int8Array(trafficCount);
 
-    useMemo(() => {
         for (let i = 0; i < trafficCount; i++) {
-            trafficSpeed.current[i] = Math.random() * 0.05 + 0.02;
-            trafficOffset.current[i] = Math.random() * 100;
+            const baseSeed = ((i + 1) * 0x9e3779b1) ^ 0x0c17;
+            speeds[i] = 0.6 + randomFromSeed(baseSeed) * 0.8; // 0.6–1.4
+            offsets[i] = randomFromSeed(baseSeed ^ 0x5a5a5a5a) * 100;
+            lanes[i] = Math.floor(randomFromSeed(baseSeed ^ 0x1234567) * 5) - 2; // -2..2
         }
+
+        return { speeds, offsets, lanes };
     }, []);
 
     useFrame((state) => {
@@ -51,8 +59,8 @@ export const City = ({ tps = 1000 }: CityProps) => {
             const speedMult = Math.max(0.5, tps / 2000);
 
             for (let i = 0; i < trafficCount; i++) {
-                const zPos = ((time * speedMult + trafficOffset.current[i]) % 10) - 5;
-                const xPos = (i % 5) - 2; // rudimentary lanes
+                const zPos = ((time * speedMult * traffic.speeds[i] + traffic.offsets[i]) % 10) - 5;
+                const xPos = traffic.lanes[i];
 
                 matrix.identity();
                 matrix.setPosition(xPos * 2, 0.1, zPos);
@@ -72,7 +80,7 @@ export const City = ({ tps = 1000 }: CityProps) => {
         }
     });
 
-    useMemo(() => {
+    useEffect(() => {
         if (!meshRef.current) return;
         buildingMatrices.forEach((mat, i) => {
             meshRef.current?.setMatrixAt(i, mat);
