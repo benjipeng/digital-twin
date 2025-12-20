@@ -14,10 +14,33 @@ export interface GeoLocation {
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-export const getGeoLocation = async (ips: string[]): Promise<GeoLocation[]> => {
+export interface GeoLocationLookupResult {
+    locations: GeoLocation[];
+    attempted: number;
+    resolved: number;
+    cached: number;
+    failed: number;
+    errors: string[];
+}
+
+const fetchWithTimeout = async (input: RequestInfo | URL, init?: RequestInit & { timeoutMs?: number }) => {
+    const { timeoutMs = 7000, ...options } = init ?? {};
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+        return await fetch(input, { ...options, signal: controller.signal });
+    } finally {
+        clearTimeout(timeout);
+    }
+};
+
+export const getGeoLocation = async (ips: string[]): Promise<GeoLocationLookupResult> => {
     // Limit to 50 IPs for the MVP to prevent rate-limiting/banning
     const subset = ips.slice(0, 50);
     const results: GeoLocation[] = [];
+    let cached = 0;
+    let failed = 0;
+    const errors: string[] = [];
 
     for (const ip of subset) {
         if (!ip) continue;
@@ -26,34 +49,58 @@ export const getGeoLocation = async (ips: string[]): Promise<GeoLocation[]> => {
         const cleanIp = ip.split(':')[0];
 
         if (ipCache.has(cleanIp)) {
+            cached += 1;
             results.push({ ...ipCache.get(cleanIp)!, ip: cleanIp });
             continue;
         }
 
         try {
             // Using ipapi.co (Free tier: 1000 requests/day, HTTPS supported)
-            const response = await fetch(`https://ipapi.co/${cleanIp}/json/`);
+            const response = await fetchWithTimeout(`https://ipapi.co/${cleanIp}/json/`, { timeoutMs: 7000 });
             if (response.ok) {
-                const data = await response.json();
+                const data = await response.json() as {
+                    latitude?: number;
+                    longitude?: number;
+                    city?: string;
+                    country_name?: string;
+                    error?: boolean;
+                    reason?: string;
+                };
                 if (data.latitude && data.longitude) {
                     const geo = {
                         lat: data.latitude,
                         lon: data.longitude,
-                        city: data.city,
-                        country: data.country_name
+                        city: data.city ?? 'Unknown',
+                        country: data.country_name ?? 'Unknown'
                     };
                     ipCache.set(cleanIp, geo);
                     results.push({ ...geo, ip: cleanIp });
+                } else {
+                    failed += 1;
+                    if (data?.error) {
+                        errors.push(`${cleanIp}: ${data.reason ?? 'Geo provider error'}`);
+                    }
                 }
             } else {
+                failed += 1;
                 console.warn(`Geo fetch failed for ${cleanIp}: ${response.status}`);
+                errors.push(`${cleanIp}: HTTP ${response.status}`);
             }
         } catch (e) {
+            failed += 1;
             console.error(`Geo error for ${cleanIp}`, e);
+            errors.push(`${cleanIp}: ${e instanceof Error ? e.message : 'Unknown error'}`);
         }
 
         await sleep(RATE_LIMIT_DELAY);
     }
 
-    return results;
+    return {
+        locations: results,
+        attempted: subset.length,
+        resolved: results.length,
+        cached,
+        failed,
+        errors
+    };
 };

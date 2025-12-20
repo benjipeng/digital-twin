@@ -1,19 +1,68 @@
 
+import { useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-import heroBg from '../assets/hero_bg.png';
 
 export const Hero = () => {
+    const heroRef = useRef<HTMLElement>(null);
+
+    useEffect(() => {
+        const heroEl = heroRef.current;
+        if (!heroEl) return;
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+        let raf = 0;
+        let lastX = 0;
+        let lastY = 0;
+
+        const update = () => {
+            raf = 0;
+            heroEl.style.setProperty('--ripple-x', `${lastX}px`);
+            heroEl.style.setProperty('--ripple-y', `${lastY}px`);
+        };
+
+        const onMove = (event: PointerEvent) => {
+            const rect = heroEl.getBoundingClientRect();
+            lastX = event.clientX - rect.left;
+            lastY = event.clientY - rect.top;
+            if (!raf) raf = window.requestAnimationFrame(update);
+        };
+
+        const onEnter = () => heroEl.setAttribute('data-ripple', 'on');
+        const onLeave = () => {
+            heroEl.removeAttribute('data-ripple');
+            if (raf) {
+                window.cancelAnimationFrame(raf);
+                raf = 0;
+            }
+        };
+
+        heroEl.addEventListener('pointerenter', onEnter);
+        heroEl.addEventListener('pointermove', onMove);
+        heroEl.addEventListener('pointerleave', onLeave);
+
+        return () => {
+            heroEl.removeEventListener('pointerenter', onEnter);
+            heroEl.removeEventListener('pointermove', onMove);
+            heroEl.removeEventListener('pointerleave', onLeave);
+            if (raf) window.cancelAnimationFrame(raf);
+        };
+    }, []);
+
     return (
-        <section style={{
-            minHeight: '100vh',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            position: 'relative',
-            overflow: 'hidden',
-            paddingTop: 'var(--spacing-xl)'
-        }}>
+        <section
+            ref={heroRef}
+            className="hero"
+            style={{
+                minHeight: '100vh',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                position: 'relative',
+                overflow: 'hidden',
+                paddingTop: 'var(--spacing-xl)'
+            }}
+        >
             {/* Abstract Background */}
             <div style={{
                 position: 'absolute',
@@ -25,25 +74,8 @@ export const Hero = () => {
                 zIndex: -2
             }} />
 
-            <motion.div
-                initial={{ opacity: 0, scale: 1.1 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 2, ease: "easeOut" }}
-                style={{
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    width: '100%',
-                    height: '100%',
-                    backgroundImage: `url(${heroBg})`,
-                    backgroundSize: 'cover',
-                    backgroundRepeat: 'no-repeat',
-                    backgroundPosition: 'center',
-                    opacity: 0.6,
-                    filter: 'blur(0px)',
-                    zIndex: -1
-                }}
-            />
+            {/* Pointer-responsive ripple overlay */}
+            <div className="hero-ripple" aria-hidden="true" />
 
             {/* Overlay Gradient for Fade */}
             <div style={{

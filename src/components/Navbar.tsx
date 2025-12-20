@@ -1,7 +1,12 @@
 
 import { motion } from 'framer-motion';
 
-export const Navbar = () => {
+interface NavbarProps {
+    performanceMode: boolean;
+    onTogglePerformance: () => void;
+}
+
+export const Navbar = ({ performanceMode, onTogglePerformance }: NavbarProps) => {
     return (
         <motion.header
             initial={{ y: -50, opacity: 0 }}
@@ -31,6 +36,23 @@ export const Navbar = () => {
                 </div>
 
                 <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                    <button
+                        onClick={onTogglePerformance}
+                        style={{
+                            background: performanceMode ? 'rgba(0, 0, 0, 0.45)' : 'transparent',
+                            border: performanceMode ? '1px solid rgba(0, 255, 153, 0.5)' : '1px solid rgba(255,255,255,0.2)',
+                            color: performanceMode ? '#00ff99' : '#fff',
+                            boxShadow: performanceMode ? '0 0 18px rgba(0, 255, 153, 0.22)' : 'none',
+                            fontSize: '0.7rem',
+                            cursor: 'pointer',
+                            fontFamily: 'var(--font-family-mono)',
+                            letterSpacing: '0.08rem',
+                            textTransform: 'uppercase',
+                            padding: '0.4rem 0.7rem'
+                        }}
+                    >
+                        Battery Saver: {performanceMode ? 'ON' : 'OFF'}
+                    </button>
                     <button
                         style={{
                             background: 'transparent',

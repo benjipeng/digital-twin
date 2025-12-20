@@ -4,16 +4,33 @@ import { Stars, Ring } from '@react-three/drei';
 import * as THREE from 'three';
 import type { GeoLocation } from '../../services/geolocation';
 import { hashStringToSeed, randomFromSeed } from '../../utils/random';
+import type { UserLocation } from '../../services/userLocation';
 
 interface GlobeProps {
     validatorCount?: number;
     locations?: GeoLocation[];
+    userLocation?: UserLocation | null;
+    quality?: 'preview' | 'full';
+    performanceMode?: boolean;
 }
 
-export const Globe = ({ validatorCount = 1000, locations = [] }: GlobeProps) => {
+export const Globe = ({
+    validatorCount = 1000,
+    locations = [],
+    userLocation,
+    quality = 'full',
+    performanceMode = false
+}: GlobeProps) => {
+    const groupRef = useRef<THREE.Group>(null);
     const meshRef = useRef<THREE.InstancedMesh>(null);
     const globeRef = useRef<THREE.Mesh>(null);
     const ringsRef = useRef<THREE.Group>(null);
+    const userMarkerRef = useRef<THREE.Mesh>(null);
+    const glowRef = useRef<THREE.Mesh>(null);
+    const beaconMaterialRef = useRef<THREE.MeshBasicMaterial>(null);
+    const glowMaterialRef = useRef<THREE.MeshBasicMaterial>(null);
+    const tempObj = useRef(new THREE.Object3D());
+    const upRef = useRef(new THREE.Vector3(0, 1, 0));
 
     // Convert Lat/Lon to 3D Position
     const latLonToVector3 = (lat: number, lon: number, radius: number) => {
@@ -27,16 +44,22 @@ export const Globe = ({ validatorCount = 1000, locations = [] }: GlobeProps) => 
     };
 
     // Calculate positions based on REAL locations or Fallback
-    const { positions, colors, scales } = useMemo(() => {
+    const { positions, normals, colors, scales, phases } = useMemo(() => {
         const hasRealData = locations.length > 0;
-        const count = hasRealData ? locations.length : Math.min(validatorCount, 400);
+        const isLowDetail = performanceMode || quality === 'preview';
+        const maxPoints = isLowDetail ? 200 : 400;
+        const count = hasRealData ? locations.length : Math.min(validatorCount, maxPoints);
 
         const tempCol = new Float32Array(count * 3);
         const tempScale = new Float32Array(count);
-        const color1 = new THREE.Color("#00ffff"); // Cyan
-        const color2 = new THREE.Color("#bf00ff"); // Purple
+        const tempPhase = new Float32Array(count);
+        const color1 = new THREE.Color("#00f5ff");
+        const color2 = new THREE.Color("#7cffb7");
+        const color3 = new THREE.Color("#ffc46b");
+        const sphericalNormals: THREE.Vector3[] = [];
 
         const sphericalPoints: THREE.Vector3[] = [];
+        const radius = 2.05;
 
         for (let i = 0; i < count; i++) {
             let pos = new THREE.Vector3();
@@ -46,14 +69,14 @@ export const Globe = ({ validatorCount = 1000, locations = [] }: GlobeProps) => 
                 // Real Data Mapping
                 const loc = locations[i];
                 if (loc) {
-                    pos = latLonToVector3(loc.lat, loc.lon, 2.05);
+                    pos = latLonToVector3(loc.lat, loc.lon, radius);
                     seedBase = loc.ip ? hashStringToSeed(loc.ip) : hashStringToSeed(`${loc.lat},${loc.lon}`);
                 }
             } else {
                 // Simulated (Fibonacci Sphere)
                 const phi = Math.acos(-1 + (2 * i) / count);
                 const theta = Math.sqrt(count * Math.PI) * phi;
-                const r = 2.1;
+                const r = radius;
                 pos.set(
                     r * Math.cos(theta) * Math.sin(phi),
                     r * Math.sin(theta) * Math.sin(phi),
@@ -62,99 +85,164 @@ export const Globe = ({ validatorCount = 1000, locations = [] }: GlobeProps) => 
             }
 
             sphericalPoints.push(pos);
+            sphericalNormals.push(pos.clone().normalize());
 
             // Mix colors (Real data could use country color coding later?)
-            const mixed = color1.clone().lerp(color2, randomFromSeed(seedBase));
+            const mixA = randomFromSeed(seedBase);
+            const mixed = color1.clone().lerp(color2, mixA).lerp(color3, randomFromSeed(seedBase ^ 0x5bd1e995) * 0.4);
             tempCol.set([mixed.r, mixed.g, mixed.b], i * 3);
-            tempScale[i] = 0.5 + randomFromSeed(seedBase ^ 0x9e3779b9) * 0.5;
+            tempScale[i] = 0.6 + randomFromSeed(seedBase ^ 0x9e3779b9) * 1.2;
+            tempPhase[i] = randomFromSeed(seedBase ^ 0xa9c9d2f3) * Math.PI * 2;
         }
 
-        return { positions: sphericalPoints, colors: tempCol, scales: tempScale };
-    }, [validatorCount, locations]);
+        return { positions: sphericalPoints, normals: sphericalNormals, colors: tempCol, scales: tempScale, phases: tempPhase };
+    }, [validatorCount, locations, performanceMode, quality]);
 
     useFrame((state) => {
         const time = state.clock.elapsedTime;
         // If showing real map, rotate slower to allow inspection
         const rotSpeed = locations.length > 0 ? 0.02 : 0.05;
 
-        // if (globeRef.current) globeRef.current.rotation.y = time * rotSpeed;
-
-        // Rotate the container group instead to keep pins aligned with globe wireframe?
-        // Actually, for real map, we usually want manual control, but for "Screensaver" vibe we rotate.
-        // We'll rotate the whole group in the parent or here.
-        if (meshRef.current) meshRef.current.rotation.y = time * rotSpeed;
-        if (globeRef.current) globeRef.current.rotation.y = time * rotSpeed;
+        if (groupRef.current) {
+            groupRef.current.rotation.y = time * rotSpeed;
+            groupRef.current.rotation.z = Math.PI / 8;
+            groupRef.current.rotation.x = -0.1;
+        }
 
         if (ringsRef.current) {
-            ringsRef.current.rotation.z = time * 0.02;
-            ringsRef.current.rotation.x = Math.sin(time * 0.1) * 0.1;
+            ringsRef.current.rotation.y = time * 0.12;
+            ringsRef.current.rotation.x = Math.sin(time * 0.1) * 0.2;
+            ringsRef.current.rotation.z = Math.sin(time * 0.2) * 0.12;
+        }
+
+        if (userMarkerRef.current) {
+            const pulse = 1 + Math.sin(time * 2.6) * 0.2;
+            userMarkerRef.current.scale.setScalar(pulse);
+        }
+
+        if (glowRef.current) {
+            glowRef.current.scale.setScalar(1.04 + Math.sin(time * 0.6) * 0.02);
+        }
+
+        if (glowMaterialRef.current) {
+            glowMaterialRef.current.opacity = 0.12 + Math.sin(time * 0.6) * 0.04;
+        }
+
+        if (meshRef.current) {
+            const baseHeight = (performanceMode || quality === 'preview') ? 0.12 : 0.18;
+            const temp = tempObj.current;
+            const up = upRef.current;
+
+            for (let i = 0; i < positions.length; i++) {
+                const normal = normals[i];
+                const beat = 0.7 + Math.sin(time * (1.3 + (scales[i] * 0.3)) + phases[i]) * 0.3;
+                const height = baseHeight * scales[i] * beat;
+                const offset = height * 0.5;
+
+                temp.position.copy(positions[i]).addScaledVector(normal, offset);
+                temp.quaternion.setFromUnitVectors(up, normal);
+                temp.scale.set(1, height, 1);
+                temp.updateMatrix();
+                meshRef.current.setMatrixAt(i, temp.matrix);
+            }
+
+            meshRef.current.instanceMatrix.needsUpdate = true;
+        }
+
+        if (beaconMaterialRef.current) {
+            beaconMaterialRef.current.opacity = 0.35 + Math.sin(time * 0.9) * 0.15;
         }
     });
 
     useEffect(() => {
         if (!meshRef.current) return;
-        const tempObj = new THREE.Object3D();
-
-        positions.forEach((pos, i) => {
-            tempObj.position.copy(pos);
-            tempObj.lookAt(0, 0, 0);
-            tempObj.scale.setScalar(scales[i] ?? 0.75);
-            tempObj.updateMatrix();
-            meshRef.current?.setMatrixAt(i, tempObj.matrix);
+        positions.forEach((_, i) => {
             meshRef.current?.setColorAt(i, new THREE.Color().fromArray(colors, i * 3));
         });
-
-        meshRef.current.instanceMatrix.needsUpdate = true;
         meshRef.current.instanceColor!.needsUpdate = true;
-    }, [positions, colors, scales]);
+    }, [positions, colors]);
+
+    const isLowDetail = performanceMode || quality === 'preview';
+    const starCount = isLowDetail ? 1500 : 5000;
+    const globeScale = quality === 'preview' ? 0.78 : 1;
 
     return (
-        <group rotation={[0, 0, Math.PI / 8]}>
-            <Stars radius={100} depth={50} count={5000} factor={4} saturation={0} fade speed={1} />
+        <group ref={groupRef} scale={globeScale}>
+            <Stars radius={120} depth={60} count={starCount} factor={4} saturation={0} fade speed={0.6} />
 
             {/* Main Globe */}
             <mesh ref={globeRef}>
                 <sphereGeometry args={[2, 64, 64]} />
                 <meshStandardMaterial
-                    color="#050505"
-                    roughness={0.7}
-                    metalness={0.5}
-                    emissive="#001133"
-                    emissiveIntensity={0.2}
-                    transparent
-                    opacity={0.9}
+                    color="#04070d"
+                    roughness={0.55}
+                    metalness={0.7}
+                    emissive="#0b2a3d"
+                    emissiveIntensity={0.35}
                 />
                 {/* Wireframe Child */}
                 <mesh>
                     <sphereGeometry args={[2.01, 32, 32]} />
-                    <meshBasicMaterial color="#0044aa" wireframe transparent opacity={0.1} />
+                    <meshBasicMaterial color="#2bd1ff" wireframe transparent opacity={0.16} />
                 </mesh>
+
+                {/* User Location Marker (permission-based, local only) */}
+                {userLocation && (
+                    <mesh ref={userMarkerRef} position={latLonToVector3(userLocation.lat, userLocation.lon, 2.18)}>
+                        <sphereGeometry args={[0.06, 16, 16]} />
+                        <meshBasicMaterial toneMapped={false} color="#7cffb7" />
+                    </mesh>
+                )}
             </mesh>
 
             {/* Atmosphere */}
-            <mesh scale={[1.2, 1.2, 1.2]}>
-                <sphereGeometry args={[1.8, 64, 64]} />
+            <mesh scale={[1.16, 1.16, 1.16]}>
+                <sphereGeometry args={[1.85, 64, 64]} />
                 <meshBasicMaterial
-                    color="#0066ff"
+                    color="#2bd1ff"
                     transparent
-                    opacity={0.05}
+                    opacity={0.09}
                     side={THREE.BackSide}
                     blending={THREE.AdditiveBlending}
+                    depthWrite={false}
                 />
             </mesh>
 
             {/* Validators */}
             <instancedMesh ref={meshRef} args={[undefined, undefined, positions.length]}>
-                <sphereGeometry args={[0.04, 8, 8]} />
-                <meshBasicMaterial toneMapped={false} color="#00ffff" />
+                <cylinderGeometry args={[0.012, 0.012, 1, 6]} />
+                <meshBasicMaterial
+                    ref={beaconMaterialRef}
+                    toneMapped={false}
+                    vertexColors
+                    transparent
+                    opacity={0.5}
+                    blending={THREE.AdditiveBlending}
+                    depthWrite={false}
+                />
             </instancedMesh>
 
             {/* Orbital Rings */}
             <group ref={ringsRef}>
                 <Ring args={[2.5, 2.52, 64]} rotation={[Math.PI / 2, 0, 0]}>
-                    <meshBasicMaterial color="#444444" transparent opacity={0.3} side={THREE.DoubleSide} />
+                    <meshBasicMaterial color="#3a4d5d" transparent opacity={0.4} side={THREE.DoubleSide} />
+                </Ring>
+                <Ring args={[2.65, 2.67, 64]} rotation={[Math.PI / 3, 0.4, 0]}>
+                    <meshBasicMaterial color="#00f5ff" transparent opacity={0.18} side={THREE.DoubleSide} />
                 </Ring>
             </group>
+
+            <mesh ref={glowRef} scale={[1.08, 1.08, 1.08]}>
+                <sphereGeometry args={[2, 64, 64]} />
+                <meshBasicMaterial
+                    ref={glowMaterialRef}
+                    color="#2bd1ff"
+                    transparent
+                    opacity={0.14}
+                    blending={THREE.AdditiveBlending}
+                    depthWrite={false}
+                />
+            </mesh>
         </group>
     );
 };

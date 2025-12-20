@@ -64,3 +64,192 @@ a:hover {
     display: flex !important;
   }
 }
+
+/* Hero ripple effect */
+@property --ripple-size {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 0px;
+}
+
+@property --ripple-size-2 {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 0px;
+}
+
+.hero {
+  --ripple-x: 50%;
+  --ripple-y: 45%;
+  --ripple-size: 0px;
+  --ripple-size-2: 0px;
+}
+
+.hero-ripple {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0;
+  background-image:
+    radial-gradient(circle at var(--ripple-x) var(--ripple-y),
+      rgba(0, 255, 255, 0.35) 0px,
+      rgba(0, 255, 255, 0.12) calc(var(--ripple-size) * 0.35),
+      rgba(0, 255, 255, 0.0) var(--ripple-size)),
+    radial-gradient(circle at var(--ripple-x) var(--ripple-y),
+      rgba(255, 255, 255, 0.14) 0px,
+      rgba(255, 255, 255, 0.05) calc(var(--ripple-size-2) * 0.28),
+      rgba(255, 255, 255, 0.0) var(--ripple-size-2));
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+  mix-blend-mode: screen;
+  filter: blur(0.3px) saturate(1.05);
+  transition: opacity 0.2s ease;
+  animation: hero-ripple-pulse 3.2s ease-out infinite;
+  animation-play-state: paused;
+  will-change: opacity, filter;
+}
+
+.hero[data-ripple='on'] .hero-ripple {
+  opacity: 1;
+  animation-play-state: running;
+}
+
+@keyframes hero-ripple-pulse {
+  0% {
+    --ripple-size: 40px;
+    --ripple-size-2: 140px;
+    opacity: 0.35;
+  }
+  60% {
+    --ripple-size: 420px;
+    --ripple-size-2: 760px;
+    opacity: 0.8;
+  }
+  100% {
+    --ripple-size: 680px;
+    --ripple-size-2: 1100px;
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-ripple {
+    animation: none;
+    opacity: 0.25;
+  }
+}
+
+/* City pulse layout + toggle */
+.pulse-anchor {
+  --pulse-pad-x: 1.25rem;
+  --pulse-pad-y: 0.9rem;
+  position: fixed;
+  right: 3rem;
+  bottom: 3rem;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.pulse-button-slot {
+  position: absolute;
+  right: var(--pulse-pad-x);
+  bottom: var(--pulse-pad-y);
+}
+
+.pulse-toggle {
+  border: 1px solid rgba(0, 255, 153, 0.45);
+  background: rgba(0, 0, 0, 0.45);
+  border-radius: 0;
+  appearance: none;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: #00ff99;
+  font-family: var(--font-family-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.1rem;
+  text-transform: uppercase;
+  padding: 0.65rem 0.95rem;
+  cursor: pointer;
+  box-shadow: 0 0 18px rgba(0, 255, 153, 0.12);
+  white-space: nowrap;
+  min-width: 8.5rem;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.pulse-toggle:hover {
+  box-shadow: 0 0 28px rgba(0, 255, 153, 0.22);
+}
+
+.city-pulse-panel {
+  min-width: 320px;
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1rem var(--pulse-pad-x) 1rem var(--pulse-pad-x);
+  background: rgba(0, 0, 0, 0.12);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border-radius: 0;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 0 40px rgba(0, 0, 0, 0.45);
+}
+
+.city-pulse-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  font-family: var(--font-family-mono);
+  font-size: 0.7rem;
+  color: var(--color-text-dim);
+  letter-spacing: 0.1rem;
+  margin-top: auto;
+  padding-top: 0.7rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.city-pulse-title {
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
+.city-pulse-row {
+  background: rgba(0, 0, 0, 0.4);
+  border-left: 1px solid var(--color-secondary);
+  padding: 0.8rem 1.1rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.city-pulse-label {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  font-family: var(--font-family-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.05rem;
+}
+
+.city-pulse-value {
+  font-size: 0.9rem;
+  color: var(--color-text-main);
+  font-family: var(--font-family-mono);
+  font-weight: 500;
+}
+
+@media (max-width: 900px) {
+  .pulse-anchor {
+    right: 1.5rem;
+    bottom: 3rem;
+  }
+}

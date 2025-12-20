@@ -1,7 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { getTPS, getValidatorCount, getEnergyStats } from '../services/solana';
-import type { EnergyStats } from '../services/solana';
+import type { ClusterNodeIpsMeta, EnergyStats } from '../services/solana';
 import { X } from 'lucide-react';
 
 // Import 3D Components
@@ -17,50 +16,62 @@ import twinGlobe from '../assets/twin_globe.png';
 import twinCrystal from '../assets/twin_crystal.png';
 import twinCity from '../assets/twin_city.png';
 
-interface ExhibitData {
+interface GalleryProps {
+    performanceMode?: boolean;
     validators: number | null;
     tps: number | null;
     energy: EnergyStats | null;
+    clusterIps: string[];
+    clusterMeta: ClusterNodeIpsMeta | null;
+    loadingCluster: boolean;
+    refreshClusterNodes: () => Promise<void>;
 }
 
-export const Gallery = () => {
-    const [data, setData] = useState<ExhibitData>({
-        validators: null,
-        tps: null,
-        energy: null
-    });
-
+export const Gallery = ({
+    performanceMode = false,
+    validators,
+    tps,
+    energy,
+    clusterIps,
+    clusterMeta,
+    loadingCluster,
+    refreshClusterNodes
+}: GalleryProps) => {
     const [selectedId, setSelectedId] = useState<string | null>(null);
-
-    useEffect(() => {
-        const fetchData = async () => {
-            const [validators, tps] = await Promise.all([
-                getValidatorCount(),
-                getTPS(),
-            ]);
-
-            const energy = await getEnergyStats(validators || 0);
-
-            setData({
-                validators,
-                tps,
-                energy
-            });
-        };
-
-        fetchData();
-        const interval = setInterval(fetchData, 10000); // Update every 10s
-        return () => clearInterval(interval);
-    }, []);
+    const [hoveredId, setHoveredId] = useState<string | null>(null);
 
     // Helper to render correct 3D component with fallback or specific props
     const renderContent = (id: string, isExpanded: boolean = false) => {
+        const animateScene = isExpanded || (!performanceMode && hoveredId === id);
         return (
             <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}>
-                <Scene zoom={isExpanded ? 1.5 : 1} quality={isExpanded ? 'full' : 'preview'}>
-                    {id === 'depin' && <Globe validatorCount={data.validators || 1000} />}
-                    {id === 'carbon' && <Crystal energy={data.energy ? data.energy.totalPowerKW / 10000 : 0.5} />}
-                    {id === 'city' && <City tps={data.tps || 1000} />}
+                <Scene
+                    zoom={isExpanded ? 1.5 : 1}
+                    quality={isExpanded ? 'full' : 'preview'}
+                    performanceMode={performanceMode}
+                    animate={animateScene}
+                >
+                    {id === 'depin' && (
+                        <Globe
+                            validatorCount={validators || 1000}
+                            quality={isExpanded ? 'full' : 'preview'}
+                            performanceMode={performanceMode}
+                        />
+                    )}
+                    {id === 'carbon' && (
+                        <Crystal
+                            energy={energy ? energy.totalPowerKW / 10000 : 0.5}
+                            quality={isExpanded ? 'full' : 'preview'}
+                            performanceMode={performanceMode}
+                        />
+                    )}
+                    {id === 'city' && (
+                        <City
+                            tps={tps || 1000}
+                            quality={isExpanded ? 'full' : 'preview'}
+                            performanceMode={performanceMode}
+                        />
+                    )}
                 </Scene>
             </div>
         );
@@ -72,7 +83,7 @@ export const Gallery = () => {
             title: 'THE DePIN CONSTELLATION',
             subtitle: 'Global Infrastructure Map',
             image: twinGlobe, // Kept for metadata/fallback if needed
-            stat: data.validators?.toLocaleString() ?? '---',
+            stat: validators?.toLocaleString() ?? '---',
             statLabel: 'ACTIVE NODES (VALIDATORS)',
             description: 'A rotating 3D globe visualizing active Solana Validators as glowing nodes.',
             detail: 'The DePIN Constellation visualizes the physical distribution of the network. Every glowing node represents a real-world validator securing the ledger.'
@@ -85,14 +96,14 @@ export const Gallery = () => {
             stat: '0g',
             statLabel: 'NET CARBON (OFFSET)',
             description: 'An abstract "Living Crystal" that changes brightness based on Solana\'s energy status.',
-            detail: `Monitoring real-time network energy consumption. Current Load: ~${data.energy?.totalPowerKW ?? '---'} kW. Status: Carbon Neutral.`
+            detail: `Monitoring real-time network energy consumption. Current Load: ~${energy?.totalPowerKW ?? '---'} kW. Status: Carbon Neutral.`
         },
         {
             id: 'city',
             title: 'THE TRANSACTION CITY',
             subtitle: 'Data Visualization',
             image: twinCity,
-            stat: data.tps?.toLocaleString() ?? '---',
+            stat: tps?.toLocaleString() ?? '---',
             statLabel: 'TPS (TRAFFIC SPEED)',
             description: 'A procedural light-city where the speed of traffic represents live Transactions Per Second.',
             detail: 'The Transaction City represents the flow of information as light. Higher TPS accelerates the "traffic" of the fiber-optic metropolis.'
@@ -137,6 +148,8 @@ export const Gallery = () => {
                         key={exhibit.id}
                         layoutId={exhibit.id}
                         onClick={() => setSelectedId(exhibit.id)}
+                        onHoverStart={() => setHoveredId(exhibit.id)}
+                        onHoverEnd={() => setHoveredId((prev) => (prev === exhibit.id ? null : prev))}
                         initial={{ opacity: 0, y: 40 }}
                         whileInView={{ opacity: 1, y: 0 }}
                         viewport={{ once: true }}
@@ -185,66 +198,74 @@ export const Gallery = () => {
             {/* Expanded Views */}
             <AnimatePresence>
                 {selectedId && (
-                    <>
-                        {selectedId === 'depin' ? (
-                            <ExpandedGlobalMap
-                                validatorCount={data.validators || 1000}
-                                onClose={() => setSelectedId(null)}
-                            />
-                        ) : (
-                            /* Fallback for other cards (keep existing generic modal) */
-                            (() => {
-                                const exhibit = exhibits.find(e => e.id === selectedId);
-                                if (!exhibit) return null;
-                                return (
-                                    <motion.div
-                                        layoutId={selectedId}
+                    selectedId === 'depin' ? (
+                        <ExpandedGlobalMap
+                            validatorCount={validators || 1000}
+                            ips={clusterIps}
+                            clusterMeta={clusterMeta}
+                            loadingIps={loadingCluster}
+                            onRefreshIps={refreshClusterNodes}
+                            performanceMode={performanceMode}
+                            onClose={() => setSelectedId(null)}
+                        />
+                    ) : (
+                        /* Fallback for other cards (keep existing generic modal) */
+                        (() => {
+                            const exhibit = exhibits.find(e => e.id === selectedId);
+                            if (!exhibit) return null;
+                            return (
+                                <motion.div
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    exit={{ opacity: 0 }}
+                                    style={{
+                                        position: 'fixed',
+                                        top: 0, left: 0, right: 0, bottom: 0,
+                                        width: '100vw',
+                                        height: '100vh',
+                                        zIndex: 200,
+                                        background: 'var(--color-bg-dark)',
+                                        display: 'flex',
+                                        flexDirection: 'column'
+                                    }}
+                                >
+                                    <button
+                                        onClick={() => setSelectedId(null)}
                                         style={{
-                                            position: 'fixed',
-                                            top: 0, left: 0, right: 0, bottom: 0,
-                                            zIndex: 200,
-                                            background: 'var(--color-bg-dark)',
-                                            display: 'flex',
-                                            flexDirection: 'column'
+                                            position: 'absolute', top: '2rem', right: '2rem', zIndex: 101,
+                                            background: 'rgba(0,0,0,0.5)', border: '1px solid var(--color-glass-border)',
+                                            color: 'white', padding: '1rem', cursor: 'pointer', borderRadius: '50%'
                                         }}
                                     >
-                                        <button
-                                            onClick={() => setSelectedId(null)}
-                                            style={{
-                                                position: 'absolute', top: '2rem', right: '2rem', zIndex: 101,
-                                                background: 'rgba(0,0,0,0.5)', border: '1px solid var(--color-glass-border)',
-                                                color: 'white', padding: '1rem', cursor: 'pointer', borderRadius: '50%'
-                                            }}
-                                        >
-                                            <X size={20} />
-                                        </button>
+                                        <X size={20} />
+                                    </button>
 
-                                        <div style={{ flex: 1, position: 'relative' }}>
-                                            {renderContent(selectedId, true)}
-                                        </div>
+                                    <div style={{ flex: 1, position: 'relative', minHeight: '100%' }}>
+                                        {renderContent(selectedId, true)}
+                                    </div>
 
-                                        <div style={{
-                                            position: 'absolute', bottom: '10%', left: '5%', maxWidth: '600px',
-                                            padding: '2rem', background: 'rgba(0,0,0,0.8)', borderRadius: '8px',
-                                            border: '1px solid var(--color-glass-border)'
-                                        }}>
-                                            <h2 style={{ fontSize: '2.5rem', marginBottom: '1rem', fontFamily: 'var(--font-family-display)' }}>
-                                                {exhibit.title}
-                                            </h2>
-                                            <div style={{ fontSize: '1.2rem', color: 'var(--color-primary)', fontFamily: 'var(--font-family-mono)', marginBottom: '1rem' }}>
-                                                {exhibit.stat} {exhibit.statLabel}
-                                            </div>
-                                            <p style={{ lineHeight: 1.6, color: 'var(--color-text-dim)' }}>
-                                                {exhibit.detail}
-                                            </p>
+                                    <div style={{
+                                        position: 'absolute', bottom: '10%', left: '5%', maxWidth: '600px',
+                                        padding: '2rem', background: 'rgba(0,0,0,0.8)', borderRadius: '8px',
+                                        border: '1px solid var(--color-glass-border)'
+                                    }}>
+                                        <h2 style={{ fontSize: '2.5rem', marginBottom: '1rem', fontFamily: 'var(--font-family-display)' }}>
+                                            {exhibit.title}
+                                        </h2>
+                                        <div style={{ fontSize: '1.2rem', color: 'var(--color-primary)', fontFamily: 'var(--font-family-mono)', marginBottom: '1rem' }}>
+                                            {exhibit.stat} {exhibit.statLabel}
                                         </div>
-                                    </motion.div>
-                                );
-                            })()
-                        )}
-                    </>
+                                        <p style={{ lineHeight: 1.6, color: 'var(--color-text-dim)' }}>
+                                            {exhibit.detail}
+                                        </p>
+                                    </div>
+                                </motion.div>
+                            );
+                        })()
+                    )
                 )}
             </AnimatePresence>
+
         </section>
     );
 };
