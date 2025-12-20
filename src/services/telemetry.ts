@@ -67,6 +67,7 @@ export const useTelemetry = (): TelemetryState => {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void fetchAll();
     const interval = setInterval(fetchAll, POLL_INTERVAL_MS);
     return () => clearInterval(interval);
