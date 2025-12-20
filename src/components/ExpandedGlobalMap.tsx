@@ -138,15 +138,10 @@ export const ExpandedGlobalMap = ({
             </div>
 
             {/* Main Content Grid */}
-            <div style={{
-                flex: 1,
-                display: 'grid',
-                gridTemplateColumns: 'minmax(0, 1fr) 400px',
-                overflow: 'hidden'
-            }}>
+            <div className="expanded-map-content">
                 {/* 3D Map Area */}
-                <div style={{ position: 'relative', width: '100%', height: '100%' }}>
-                    <Scene zoom={1.2} quality="full" performanceMode={performanceMode}>
+                <div className="expanded-map-canvas">
+                    <Scene zoom={1} quality="full" performanceMode={performanceMode}>
                         <Globe
                             validatorCount={validatorCount}
                             locations={geoNodes}
@@ -157,12 +152,7 @@ export const ExpandedGlobalMap = ({
                     </Scene>
 
                     {/* Overlay Stats */}
-                    <div style={{
-                        position: 'absolute',
-                        bottom: '2rem',
-                        left: '2rem',
-                        pointerEvents: 'none'
-                    }}>
+                    <div className="expanded-map-overlay">
                         <div style={{ marginBottom: '2rem' }}>
                             <div style={{ fontSize: '3rem', fontFamily: 'var(--font-family-mono)', fontWeight: 600, color: 'var(--color-primary)' }}>
                                 {validatorCount.toLocaleString()}
@@ -185,12 +175,7 @@ export const ExpandedGlobalMap = ({
                 </div>
 
                 {/* Sidebar Scrollable Info */}
-                <div style={{
-                    borderLeft: '1px solid var(--color-glass-border)',
-                    background: 'rgba(0,0,0,0.3)',
-                    overflowY: 'auto',
-                    padding: '2rem'
-                }}>
+                <div className="expanded-map-sidebar">
                     {/* Section: Data Status */}
                     <div style={{ marginBottom: '3rem' }}>
                         <h4 style={{
